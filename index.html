@@ -15,6 +15,8 @@
         <input type="text" id="userid" name="userid"><br>
         <label for="apikey">api key:</label>
         <input type="password" id="apikey" name="apikey"><br>
+        <label for="loved">include loved maps:</label>
+        <input type="checkbox" id="loved"><br>
         <label for="interval">interval between api calls in ms:</label>
         <input type="text" id="interval" name="interval"><p>500-1000ms recommended, you can go as low as 150-200ms but it might throw errors, resulting in inaccurate data. open console (F12) to check.</p>
     </form>
@@ -26,106 +28,101 @@
     <p>however you can save the scores anytime using the buttons below</p>
     <button type="button" onclick="savecsv()">save csv!</button><br>
     <button type="button" onclick="savejson()">save json!</button><br>
-<script>
-    let userid;
-    let apikey;
-    let interval;
-    let stopped = false;
-    let beatmaps;
-    let scores = [];
-    let scorescsv = 'score_id,user_id,beatmap_id,score,count300,count100,count50,countmiss,combo,perfect,enabled_mods,date_played,rank,pp,replay_available\n';
+    <script src="bundle.js"></script>
+    <script>
+let userid;
+let apikey;
+let interval;
+let stopped = false;
+let beatmaps;
+let scores = [];
+let scorescsv = 'score_id,user_id,beatmap_id,score,count300,count100,count50,countmiss,combo,perfect,enabled_mods,date_played,rank,pp,replay_available\n';
 
 
-    async function getMaps () {
-    await fetch('https://osu.respektive.pw/beatmaps').then(function(response) {
-        return response.json();
-        }).then(function(data) {
-            beatmaps = data.ranked.beatmaps;
-        }).catch(function() {
-            console.log("Error");
-        });
+async function getMaps () {
+await fetch('https://osu.respektive.pw/beatmaps').then(function(response) {
+    return response.json();
+    }).then(function(data) {
+        beatmaps = data.ranked.beatmaps;
+        if (document.getElementById('loved').checked == true) {
+            beatmaps = beatmaps.concat(data.loved.beatmaps);
+        }
+    }).catch(function() {
+        console.log("Error");
+    });
 }
 
-    async function stop() {
-        stopped = true;
-    }
+async function stop() {
+    stopped = true;
+}
 
 
 async function start() {
-    userid = document.getElementById("userid").value;
-    apikey = document.getElementById("apikey").value;
-    interval = document.getElementById("interval").value;
+userid = document.getElementById("userid").value;
+apikey = document.getElementById("apikey").value;
+interval = document.getElementById("interval").value;
 
-    await getMaps();
+await getMaps();
 
 
-    beatmaps.every(function (id, i) {
-        function retry() {
-            setTimeout(function () {
+beatmaps.every(function (id, i) {
+    function retry() {
+        setTimeout(function () {
 
-                if (stopped == true){
-                document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length + ' (stopped)';
-                return false;
-            }
-                fetch('https://osu.ppy.sh/api/get_scores?k=' + apikey + '&b=' + id + '&u=' + userid + '&limit=1')
-                .then(function(response) {
-                return response.json()
-                })
-                .then(function(data) {
-                    console.log(data[0]);
-                    scores.push(data[0]);
-                    scorescsv +=  data[0].score_id + ',' + data[0].user_id + ',' + id + ',' + data[0].score + ',' + 
-                data[0].count300 + ',' + data[0].count100 + ',' + data[0].count50 + ',' + data[0].countmiss + ',' + 
-                data[0].maxcombo + ',' + data[0].perfect + ',' + data[0].enabled_mods + ',' + data[0].date + ',' +
-                data[0].rank + ',' + data[0].pp + ',' + data[0].replay_available + '\n';
-                })
-                    .catch(function(error) {
-                                    console.log(error);
-                                    console.log("retrying...");
-                                    setTimeout(() => {  
-                                    fetch('https://osu.ppy.sh/api/get_scores?k=' + apikey + '&b=' + id + '&u=' + userid + '&limit=1')
-                                .then(function(response) {
-                                return response.json()
-                                })
-                                .then(function(data) {
-                                    console.log(data[0]);
-                                    scores.push(data[0]);
-                                    scorescsv +=  data[0].score_id + ',' + data[0].user_id + ',' + id + ',' + data[0].score + ',' + 
-                                data[0].count300 + ',' + data[0].count100 + ',' + data[0].count50 + ',' + data[0].countmiss + ',' + 
-                                data[0].maxcombo + ',' + data[0].perfect + ',' + data[0].enabled_mods + ',' + data[0].date + ',' +
-                                data[0].rank + ',' + data[0].pp + ',' + data[0].replay_available + '\n';
-                                })
-                                .catch(function(error) {
-                                    console.log(error);
-                        });
-                    }, 5000);
-                });
-                document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length;
-
-            }, i * interval);
+            if (stopped == true){
+            document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length + ' (stopped)';
+            return false;
         }
-        retry();
-        return true;
-        })         
+            fetch('https://osu.ppy.sh/api/get_scores?k=' + apikey + '&b=' + id + '&u=' + userid + '&limit=1',{
+                retries: 3,
+                retryDelay: 1000,
+                retryOn: function(attempt, error, response) {
+                    if (error !== null || response.status >= 400) {
+                      console.log(`retrying, attempt number ${attempt + 1}`);
+                      return true;
+                    }
+                }
+              })
+            .then(function(response) {
+            return response.json()
+            })
+            .then(function(data) {
+                console.log(data[0]);
+                scores.push(data[0]);
+                scorescsv +=  data[0].score_id + ',' + data[0].user_id + ',' + id + ',' + data[0].score + ',' + 
+            data[0].count300 + ',' + data[0].count100 + ',' + data[0].count50 + ',' + data[0].countmiss + ',' + 
+            data[0].maxcombo + ',' + data[0].perfect + ',' + data[0].enabled_mods + ',' + data[0].date + ',' +
+            data[0].rank + ',' + data[0].pp + ',' + data[0].replay_available + '\n';
+            })
+                .catch(function(error) {
+                                console.log(error);
+                                console.log('no score found on beatmap id: ' + id);
+            });
+            document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length;
+
+        }, i * interval);
+    }
+    retry();
+    return true;
+    })         
 }
 
 function download(content, fileName, contentType) {
-    var a = document.createElement("a");
-    var file = new Blob([content], {type: contentType});
-    a.href = URL.createObjectURL(file);
-    a.download = fileName;
-    a.click();
+var a = document.createElement("a");
+var file = new Blob([content], {type: contentType});
+a.href = URL.createObjectURL(file);
+a.download = fileName;
+a.click();
 }
 
-    function savecsv() {
-        download(scorescsv, 'scores.csv', 'text/plain');
-    }
+function savecsv() {
+    download(scorescsv, 'scores.csv', 'text/plain');
+}
 
-    function savejson() {
-        download(JSON.stringify(scores), 'scores.json', 'text/plain');
-    }
+function savejson() {
+    download(JSON.stringify(scores), 'scores.json', 'text/plain');
+}
 
-
-</script>
+    </script>
 </body>
 </html> 
