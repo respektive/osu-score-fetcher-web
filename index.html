@@ -17,12 +17,18 @@
         <input type="password" id="apikey" name="apikey"><br>
         <label for="loved">include loved maps:</label>
         <input type="checkbox" id="loved"><br>
+        <label for="sr">Star rating range:</label>
+        <input type="text" id="sr" name="sr" value="0-12"><br>
+        <label for="start_date">Start Date:</label>
+        <input type="text" id="start_date" name="start_date" value="2007-01-01"><br>
+        <label for="end_date">End Date:</label>
+        <input type="text" id="end_date" name="end_date" value="2022-01-01"><br>
         <label for="interval">interval between api calls in ms:</label>
-        <input type="text" id="interval" name="interval"><p>500-1000ms recommended, you can go as low as 150-200ms but it might throw errors, resulting in inaccurate data. open console (F12) to check.</p>
+        <input type="text" id="interval" name="interval" value="500"><p>500-1000ms recommended, you can go as low as 150-200ms but it might throw errors, resulting in inaccurate data. open console (F12) to check.</p>
     </form>
     <button type="button" onclick="start()">start!</button><button type="button" onclick="stop()">STOP!</button>
     <p>once you stop you have to refresh the page to be able to fetch scores again, so make sure you save the file before that</p>
-    <p>Progress:</p>
+    <p id="pr">Progress:</p>
     <h1 id="prog">0/0 (this will start updating once you click start)</h1>
     <p>pls remember that checking every beatmap can take a long time (around 5 hours with 200ms interval).</p>
     <p>however you can save the scores anytime using the buttons below</p>
@@ -40,7 +46,7 @@ let scorescsv = 'score_id,user_id,beatmap_id,score,count300,count100,count50,cou
 
 
 async function getMaps () {
-await fetch('https://osu.respektive.pw/beatmaps').then(function(response) {
+await fetch(`https://osu.respektive.pw/beatmaps?star_rating=${sr}&from=${start_date}&to=${end_date}`).then(function(response) {
     return response.json();
     }).then(function(data) {
         beatmaps = data.ranked.beatmaps;
@@ -63,15 +69,13 @@ const sleep = ms => {
 async function getScores(){
     for (const beatmapId of beatmaps) {
         if (stopped == true){
-                document.getElementById("prog").innerHTML = scores.length + 1 + '/' + beatmaps.length + ' (stopped)';
+                document.getElementById("pr").innerHTML = 'Progress (stopped):';
                 break;
             }
-
             await sleep(interval);
-
             fetch('https://osu.ppy.sh/api/get_scores?k=' + apikey + '&b=' + beatmapId + '&u=' + userid + '&limit=1',{
-                    retries: 12,
-                    retryDelay: 6000,
+                    retries: 5,
+                    retryDelay: 5000,
                     retryOn: function(attempt, error, response) {
                         if (error !== null || response.status >= 400) {
                         console.log(`retrying, attempt number ${attempt + 1}`);
@@ -93,7 +97,7 @@ async function getScores(){
                     console.log(error);
                     console.log('no score found on beatmap id: ' + beatmapId);
             });
-            document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length;
+
     }
 }
 
@@ -104,9 +108,14 @@ async function start() {
     userid = document.getElementById("userid").value;
     apikey = document.getElementById("apikey").value;
     interval = document.getElementById("interval").value;
+    sr = document.getElementById("sr").value;
+    start_date = document.getElementById("start_date").value;
+    end_date = document.getElementById("end_date").value;
 
     await getMaps();
     getScores();
+
+    setInterval(function(){ document.getElementById("prog").innerHTML = scores.length + '/' + beatmaps.length; }, interval);
 
 }
 
